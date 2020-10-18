@@ -1,38 +1,46 @@
 package com.github.ratelimiter.impl;
 
 import com.aerospike.client.AerospikeClient;
-import com.aerospike.client.Key;
 import com.aerospike.client.AerospikeException;
-import com.aerospike.client.Record;
 import com.aerospike.client.Bin;
-import com.aerospike.client.ResultCode;
+import com.aerospike.client.Key;
 import com.aerospike.client.Operation;
+import com.aerospike.client.Record;
+import com.aerospike.client.ResultCode;
 import com.aerospike.client.policy.RecordExistsAction;
 import com.aerospike.client.policy.WritePolicy;
 import com.github.ratelimiter.Constants;
-import com.github.ratelimiter.models.LimitConfig;
+import com.github.ratelimiter.Evaluator;
+import com.github.ratelimiter.config.impl.AerospikeLimitConfig;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 @Slf4j
 @AllArgsConstructor
-public class Validator {
+public class AerospikeEvaluator implements Evaluator {
 
     private final AerospikeClient aerospikeClient;
-    private final LimitConfig limitConfig;
+    private final AerospikeLimitConfig limitConfig;
 
-    public boolean validateLimit(final String setName, final String clientKey) {
+    public boolean validate(final String methodName, final String clientKey) {
+        if (limitConfig == null
+                || limitConfig.getClientLimits() == null
+                || !limitConfig.getClientLimits().containsKey(clientKey)
+                || !limitConfig.getClientLimits().get(clientKey).containsKey(methodName)) {
+            return true;
+        }
 
         Record record = null;
-        val currentNumberOfRequests = 1L;
+
+        long currentNumberOfRequests = 1L;
         val clientConfigs = limitConfig.getClientLimits();
-        val clientConfig = clientConfigs.get(clientKey);
-        val timePeriod = clientConfig.getTimePeriodInMinutes();
-        val numberOfRequestsAllowed = clientConfig.getRequestsAllowed();
+        val clientMethodConfig = clientConfigs.get(clientKey).get(methodName);
+        val numberOfRequestsAllowed = clientMethodConfig.getRequestsAllowed();
+        val timePeriod = clientMethodConfig.getTimePeriodInMinutes();
 
         val namespace = limitConfig.getNamespace();
-        val key = new Key(namespace, setName, clientKey);
+        val key = new Key(namespace, methodName, clientKey);
 
         val writePolicy = new WritePolicy();
         try {

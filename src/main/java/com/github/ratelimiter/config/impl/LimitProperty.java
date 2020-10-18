@@ -1,4 +1,4 @@
-package com.github.ratelimiter.models;
+package com.github.ratelimiter.config.impl;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
