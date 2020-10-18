@@ -1,9 +1,8 @@
 package com.github.ratelimiter.filters;
 
-import com.aerospike.client.AerospikeClient;
 import com.github.ratelimiter.Constants;
-import com.github.ratelimiter.impl.Validator;
-import com.github.ratelimiter.models.LimitConfig;
+import com.github.ratelimiter.Evaluator;
+import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -15,29 +14,20 @@ import javax.ws.rs.ext.Provider;
 
 @Slf4j
 @Provider
+@AllArgsConstructor
 public class RateLimiterFilter implements ContainerRequestFilter {
 
     private final ResourceInfo resourceInfo;
-    private final LimitConfig limitConfig;
-    private final Validator validator;
-
-    public RateLimiterFilter(final ResourceInfo resourceInfo,
-                             final AerospikeClient aerospikeClient,
-                             final LimitConfig limitConfig) {
-        this.resourceInfo = resourceInfo;
-        this.limitConfig = limitConfig;
-        this.validator = new Validator(aerospikeClient, limitConfig);
-    }
+    private final Evaluator evaluator;
 
     public void filter(ContainerRequestContext containerRequestContext) {
         try {
             val methodName = resourceInfo.getResourceMethod().getName();
             val clientHeader = containerRequestContext.getHeaders().get(Constants.CLIENT_KEY);
 
-            val clientConfigs = limitConfig.getClientLimits();
-            if (clientHeader != null && !clientHeader.isEmpty() && clientConfigs.containsKey(clientHeader.get(0))) {
+            if (clientHeader != null && !clientHeader.isEmpty()) {
                 val clientKey = clientHeader.get(0);
-                val inLimit = validator.validateLimit(methodName, clientKey);
+                val inLimit = evaluator.validate(methodName, clientKey);
                 if (!inLimit) {
                     log.info("Request blocked by Rate-Limiter. Url({}), Method ({})",
                             containerRequestContext.getUriInfo().getAbsolutePath(), methodName);
